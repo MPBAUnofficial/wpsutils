@@ -1,40 +1,10 @@
-#!/usr/bin/pyhthon
-
-from __future__ import print_function
-
-import io
 import urllib
 import urllib2
+import contextlib
+
 from lxml import etree
 
-from utils import url_join
-
-# xml stuff
-wpsNamespace = 'http://www.opengis.net/wps/1.0.0'
-owsNamespace = 'http://www.opengis.net/ows/1.1'
-
-xslt="""<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-<xsl:output method="xml" indent="no"/>
-
-<xsl:template match="/|comment()|processing-instruction()">
-    <xsl:copy>
-      <xsl:apply-templates/>
-    </xsl:copy>
-</xsl:template>
-
-<xsl:template match="*">
-    <xsl:element name="{local-name()}">
-      <xsl:apply-templates select="@*|node()"/>
-    </xsl:element>
-</xsl:template>
-
-<xsl:template match="@*">
-    <xsl:attribute name="{local-name()}">
-      <xsl:value-of select="."/>
-    </xsl:attribute>
-</xsl:template>
-</xsl:stylesheet>
-"""
+from utils import url_join, clear_xml_namespaces
 
 class WpsServer(object):
     """
@@ -44,54 +14,51 @@ class WpsServer(object):
         self._wps_address = wps_address
         self._wps_path = wps_path
         self._required_args = {'Service':'WPS'}
-        
 
     @property
     def url(self):
         return url_join(self._wps_address, self._wps_path)
 
     def _doRequest(self, req_type, data, headers=None):
+        """
+        Executes a request to the wps and returns the response object.
+        """
         data.update(self._required_args)
-        if headers is None:
-            headers = {}
-        
+        headers = headers if headers is not None else {}
+        encoded_data = urllib.urlencode(data)
+
         if req_type == 'GET':
-            return self._doGet(data, headers)
+            request = urllib2.Request(self.url + "?" + encoded_data,
+                    headers=headers) 
         elif req_type == 'POST':
-            return self._doPost(data, headers)
+            request = urllib2.Request(self.url, encoded_data,
+                    headers=headers)
         else:
             raise Exception("request type {req_type} not supported".format(req_type=req_type))
 
-    def _doGet(self, data, headers):
-        encoded_data = urllib.urlencode(data)
-        complete_url = self.url + '?' + encoded_data
-        request = urllib2.Request(url=complete_url, headers=headers)
-        return urllib2.urlopen(request)
-
-    def _doPost(self, data, headers):
-        encoded_data = urllib.urlencode(data)
-        request = urllib2.Request(self.url, encoded_data, headers=headers)
         return urllib2.urlopen(request)
 
     def doXMLRequest(self, req_type, request, **kwargs):
         """
         Executes a HTTP request parsing the response as XML.
-        Returns a etree.XML object.
+        If namespaces are used they will be removed.
+        Returns a etree.XML object if everything goes well,
+        it propagates the exception otherwise.
         """
-        parser = etree.XMLParser(remove_blank_text=True)
-        xslt_doc = etree.parse(io.BytesIO(xslt))
-        transform = etree.XSLT(xslt_doc)
         kwargs.update({'Request':request})
-        response = self._doRequest(req_type, kwargs)
-        return transform(etree.XML(response.read(), parser))
+
+        with contextlib.closing(self._doRequest(req_type, kwargs)) as response:
+            data = response.read()
+
+        parser = etree.XMLParser(remove_blank_text=True)
+        return clear_xml_namespaces(etree.XML(data, parser))
 
     def getProcessList(self):
         document = self.doXMLRequest('GET', 'GetCapabilities')
         return [{'identifier':process.find("Identifier").text,
                  'version':process.get("processVersion"),
-                 'title':process.find("Title").text }
+                 'title':process.find("Title").text}
                 for process in document.find("ProcessOfferings")] 
-
 
     def getProcessDetails(self, process_name):
         document = self.doXMLRequest('GET', 'DescribeProcess',
@@ -102,10 +69,30 @@ class WpsServer(object):
         outputs_tree = root.find("ProcessOutputs")
 
         inputs = [{'identifier':input.find("Identifier").text,
-                   'type':input.find("LiteralData").find("DataType").get("reference")}
+                   'type':input.find("LiteralData").find("DataType").get("reference"),
+                   'title':input.find("Title").text,
+                   'abstract':input.find("Abstract").text,}
                   for input in inputs_tree.findall("Input")]
 
-        outputs = [{'identifier': output.find("Identifier").text,} 
+        outputs = [{'identifier': output.find("Identifier").text, 
+                    'title': output.find("Title").text,
+                    'abstract': output.find("Abstract").text,}
                    for output in outputs_tree.findall("Output")]
 
         return {'inputs':inputs, 'outputs':outputs} 
+
+    def runProcess(self, process_name, data_inputs):
+        # Soluzione elegante
+        #processed_data = ';'.join(["{0}={1}".format(*item) for item in data_inputs.items()])
+        # Soluzione meno elegante
+        processed_outputs = ';'.join([out['identifier'] for out in self.getProcessDetails(process_name)['outputs']])
+        processed_inputs = ';'.join(["%s=%s"%item for item in data_inputs.items()])
+        document = self.doXMLRequest('GET', 'Execute',
+                                        Identifier=process_name,
+                                        Version="1.0.0",
+                                        DataInputs=processed_inputs,
+                                        ResponseDocument=processed_outputs,
+                                        StoreExecuteResponse="True",
+                                        Status="True")
+
+        return document.getroot().get("statusLocation")

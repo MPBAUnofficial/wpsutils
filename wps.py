@@ -6,24 +6,19 @@ from lxml import etree
 
 from utils import url_join, clear_xml_namespaces
 
-class WpsServer(object):
-    """
-    Commodity class to connect to a wps server and make requests to it.
-    """
-    def __init__(self, wps_address, wps_path):
-        self._wps_address = wps_address
-        self._wps_path = wps_path
-        self._required_args = {'Service':'WPS'}
-
+class XMLConnection(object):
+    def __init__(self, host, path):
+        self._host = host
+        self._path = path
+    
     @property
     def url(self):
-        return url_join(self._wps_address, self._wps_path)
+        return url_join(self._host, self._path)
 
     def _doRequest(self, req_type, data, headers=None):
         """
         Executes a request to the wps and returns the response object.
         """
-        data.update(self._required_args)
         headers = headers if headers is not None else {}
         encoded_data = urllib.urlencode(data)
 
@@ -38,31 +33,31 @@ class WpsServer(object):
 
         return urllib2.urlopen(request)
 
-    def doXMLRequest(self, req_type, request, **kwargs):
-        """
-        Executes a HTTP request parsing the response as XML.
-        If namespaces are used they will be removed.
-        Returns a etree.XML object if everything goes well,
-        it propagates the exception otherwise.
-        """
-        kwargs.update({'Request':request})
-
-        with contextlib.closing(self._doRequest(req_type, kwargs)) as response:
+    def doXMLRequest(self, req_type, data):
+        with contextlib.closing(self._doRequest(req_type, data)) as response:
             data = response.read()
 
         parser = etree.XMLParser(remove_blank_text=True)
         return clear_xml_namespaces(etree.XML(data, parser))
 
+class WpsConnection(XMLConnection):
+    def __init__(self, wps_address, wps_request_path):
+        XMLConnection.__init__(self, wps_address, wps_request_path)
+
+    def doRequest(self, request, data=None):
+        data = data if data is not None else {}
+        data.update({'Service':'WPS', 'Request':request})
+        return self.doXMLRequest('GET', data)
+
     def getProcessList(self):
-        document = self.doXMLRequest('GET', 'GetCapabilities')
+        document = self.doRequest('GetCapabilities') 
         return [{'identifier':process.find("Identifier").text,
                  'version':process.get("processVersion"),
                  'title':process.find("Title").text}
                 for process in document.find("ProcessOfferings")] 
 
     def getProcessDetails(self, process_name):
-        document = self.doXMLRequest('GET', 'DescribeProcess',
-                Identifier=process_name)
+        document = self.doRequest('DescribeProcess', {'Identifier':process_name})
 
         root = document.find("ProcessDescription")
         inputs_tree = root.find("DataInputs")
@@ -87,12 +82,11 @@ class WpsServer(object):
         # Soluzione meno elegante
         processed_outputs = ';'.join([out['identifier'] for out in self.getProcessDetails(process_name)['outputs']])
         processed_inputs = ';'.join(["%s=%s"%item for item in data_inputs.items()])
-        document = self.doXMLRequest('GET', 'Execute',
-                                        Identifier=process_name,
-                                        Version="1.0.0",
-                                        DataInputs=processed_inputs,
-                                        ResponseDocument=processed_outputs,
-                                        StoreExecuteResponse="True",
-                                        Status="True")
+        document = self.doRequest('Execute', {'Identifier':process_name,
+                                              'Version':"1.0.0",
+                                              'DataInputs':processed_inputs,
+                                              'ResponseDocument':processed_outputs,
+                                              'StoreExecuteResponse':"True",
+                                              'Status':"True"})
 
         return document.getroot().get("statusLocation")

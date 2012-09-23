@@ -1,1 +1,1 @@
-a = wps.WpsServer("http://192.168.71.132:8080","/wps/WebProcessingService")
+a = wps.WpsServer("http://192.168.71.132:8080/wps/WebProcessingService")

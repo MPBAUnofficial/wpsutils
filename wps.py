@@ -4,18 +4,19 @@ import contextlib
 
 from lxml import etree
 
-from utils import url_join, clear_xml_namespaces
+from utils import clear_xml_namespaces
+
+class WpsError(RuntimeError):
+    def __init__(self, code, text):
+        RuntimeError.__init__(self, text)
+        self.code = code
+        self.text = text
 
 class XMLConnection(object):
-    def __init__(self, host, path):
-        self._host = host
-        self._path = path
-    
-    @property
-    def url(self):
-        return url_join(self._host, self._path)
+    def __init__(self, url):
+        self.url = url
 
-    def _doRequest(self, req_type, data, headers=None):
+    def _do_request(self, req_type, data, headers=None):
         """
         Executes a request to the wps and returns the response object.
         """
@@ -33,31 +34,43 @@ class XMLConnection(object):
 
         return urllib2.urlopen(request)
 
-    def doXMLRequest(self, req_type, data):
-        with contextlib.closing(self._doRequest(req_type, data)) as response:
+    def do_xml_request(self, req_type, data):
+        with contextlib.closing(self._do_request(req_type, data)) as response:
             data = response.read()
 
         parser = etree.XMLParser(remove_blank_text=True)
         return clear_xml_namespaces(etree.XML(data, parser))
 
 class WpsConnection(XMLConnection):
-    def __init__(self, wps_address, wps_request_path):
-        XMLConnection.__init__(self, wps_address, wps_request_path)
+    def __init__(self, wps_request_url):
+        XMLConnection.__init__(self, wps_request_url)
 
-    def doRequest(self, request, data=None):
+    def process_wps_errors(self, document):
+        exception_root = document.getroot()
+        try:
+            code = exception_root.find("Exception").get("exceptionCode")
+            text = exception_root.find("Exception").find("ExceptionText").text
+        except AttributeError:
+            return document 
+        else:
+            raise WpsError(code, text)
+
+    def do_request(self, request, data=None):
         data = data if data is not None else {}
         data.update({'Service':'WPS', 'Request':request})
-        return self.doXMLRequest('GET', data)
+        clean_document = self.process_wps_errors(self.do_xml_request('GET', data))
+        return clean_document 
 
-    def getProcessList(self):
-        document = self.doRequest('GetCapabilities') 
+    def get_process_list(self):
+
+        document = self.do_request('GetCapabilities') 
         return [{'identifier':process.find("Identifier").text,
                  'version':process.get("processVersion"),
                  'title':process.find("Title").text}
                 for process in document.find("ProcessOfferings")] 
 
-    def getProcessDetails(self, process_name):
-        document = self.doRequest('DescribeProcess', {'Identifier':process_name})
+    def get_process_details(self, process_name):
+        document = self.do_request('DescribeProcess', {'Identifier':process_name})
 
         root = document.find("ProcessDescription")
         inputs_tree = root.find("DataInputs")
@@ -76,13 +89,13 @@ class WpsConnection(XMLConnection):
 
         return {'inputs':inputs, 'outputs':outputs} 
 
-    def runProcess(self, process_name, data_inputs):
+    def run_process(self, process_name, data_inputs):
         # Soluzione elegante
         #processed_data = ';'.join(["{0}={1}".format(*item) for item in data_inputs.items()])
         # Soluzione meno elegante
-        processed_outputs = ';'.join([out['identifier'] for out in self.getProcessDetails(process_name)['outputs']])
+        processed_outputs = ';'.join([out['identifier'] for out in self.get_process_details(process_name)['outputs']])
         processed_inputs = ';'.join(["%s=%s"%item for item in data_inputs.items()])
-        document = self.doRequest('Execute', {'Identifier':process_name,
+        document = self.do_request('Execute', {'Identifier':process_name,
                                               'Version':"1.0.0",
                                               'DataInputs':processed_inputs,
                                               'ResponseDocument':processed_outputs,

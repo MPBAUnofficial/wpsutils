@@ -28,16 +28,14 @@ def get_wps_server_or_error(server):
 
 def get_process_details_or_error(server, process_code):
     try:
-        process = server.connection.get_process_details(process_code)
+        return server.connection.get_process_details(process_code)
     except WpsError as w_err:
         error_msg = 'an exception was raised by wps {srv} while requesting process details for {prc}'.format(srv=server.identifier, prc=process_code)
         raise DispatchError({'error':error_msg,'code':w_err.code, 'text':w_err.text})
 
-    return process
-
 @render_to_json()
 def get_wps_server_list(request):
-    return WpsServer.objects.to_json()
+    return WpsServer.objects.dict_objects()
 
 @render_to_json()
 @dispatch_errors

@@ -7,9 +7,8 @@ import jsonfield
 from wps import WpsConnection
 
 class WpsServerManager(models.Manager):
-    def to_json(self):
-        return [wps.to_json() for wps in super(WpsServerManager,
-            self).get_query_set().all()]
+    def dict_objects(self):
+        return [wps.json for wps in super(WpsServerManager, self).get_query_set().all()] 
 
 class WpsServer(models.Model):
     display_name = models.CharField(_("display name"), max_length=50)
@@ -25,9 +24,10 @@ class WpsServer(models.Model):
             self._connection = WpsConnection(self.url)
         return self._connection
 
-    def to_json(self):
+    @property
+    def json(self):
         return {'display_name':self.display_name,
-                'identifer':self.identifier,
+                'identifier':self.identifier,
                 'description':self.description,
                 'url':self.url}
 

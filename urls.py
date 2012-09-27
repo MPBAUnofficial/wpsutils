@@ -7,6 +7,6 @@ urlpatterns = patterns('wps.views',
         'get_process_list', name='process-list'),
     url(r'process/details/(?P<server_name>[-\w]+)/(?P<process_name>[_.\w]+)/$',
         'get_process_details', name='process-details'),
-    #url(r'process/run/(?P<server_name>[-\w]+)/(?P<process_name>[_.\w]+)/$',
-    #    'run_process', name='run-process'),
+    url(r'process/run/(?P<server_name>[-\w]+)/(?P<process_name>[_.\w]+)/$',
+        'run_process', name='run-process'),
 )

@@ -1,5 +1,6 @@
 import urllib
 import urllib2
+import urlparse
 import contextlib
 
 from lxml import etree
@@ -41,9 +42,9 @@ class XMLConnection(object):
         parser = etree.XMLParser(remove_blank_text=True)
         return clear_xml_namespaces(etree.XML(data, parser))
 
-class WpsConnection(XMLConnection):
-    def __init__(self, wps_request_url):
-        XMLConnection.__init__(self, wps_request_url)
+class WpsAbstractConnection(XMLConnection):
+    def __init__(self, url):
+        super(WpsAbstractConnection, self).__init__(url)
 
     def process_wps_errors(self, document):
         exception_root = document.getroot()
@@ -55,14 +56,17 @@ class WpsConnection(XMLConnection):
         else:
             raise WpsError(code, text)
 
+class WpsConnection(WpsAbstractConnection):
+    def __init__(self, wps_request_url):
+        super(WpsConnection, self).__init__(wps_request_url)
+
     def do_request(self, request, data=None):
         data = data if data is not None else {}
-        data.update({'Service':'WPS', 'Request':request})
+        data.update({'Service':'WPS', 'Request':request}) 
         clean_document = self.process_wps_errors(self.do_xml_request('GET', data))
         return clean_document 
 
     def get_process_list(self):
-
         document = self.do_request('GetCapabilities') 
         return [{'identifier':process.find("Identifier").text,
                  'version':process.get("processVersion"),
@@ -103,3 +107,22 @@ class WpsConnection(XMLConnection):
                                               'Status':"True"})
 
         return document.getroot().get("statusLocation")
+
+class WpsResultConnection(WpsAbstractConnection):
+    def __init__(self, wps_polling_url):
+        parsed_url = urlparse.urlparse(wps_polling_url)
+        polling_url = "%s://%s%s" % parsed_url[:3] 
+        super(WpsResultConnection, self).__init__(polling_url) 
+        self.inputs = [tuple(input_data.split("=")) for input_data in parsed_url[4].split(',')]
+
+    def do_request(self):
+        return self.process_wps_errors(
+                self.do_xml_request('GET', self.inputs))
+
+    def get_polling_status(self):
+        document = self.do_request()
+        return document
+
+
+
+

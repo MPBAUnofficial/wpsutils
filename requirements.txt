@@ -2,3 +2,5 @@
 django-jsonfield
 # Django-tojson
 -e git://github.com/davidek/django-tojson.git#egg=tojson
+# pytz for better timezone support
+pytz

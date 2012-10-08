@@ -1,3 +1,4 @@
+import re
 import urllib
 import urllib2
 import urlparse
@@ -119,10 +120,64 @@ class WpsResultConnection(WpsAbstractConnection):
         return self.process_wps_errors(
                 self.do_xml_request('GET', self.inputs))
 
+    def _parse_outputs(self, output_tag):
+        transform = lambda s: '_'.join([w.lower() for w in re.findall("[A-Z][a-z]+", s)])
+
+        outputs = [{'identifier':output.find("Identifier").text,
+                    'title':output.find("Title").text,
+                    transform(output.find("Data")[0].tag):output.find("Data")[0].text
+                    } for output in output_tag]
+
+        return outputs
+
     def get_polling_status(self):
+        """
+        This function will query the process polling page and return
+        a two element tuple containing (<status>, <payload>).
+        The payload will be a dictionary object or None.
+        As OGC 05-007r7 document states at page 59,
+        table 55 the possible statuses of a process are:
+        - ProcessAccepted:
+          * Process has been accepted and queued by the server but processing has not begun.
+          * status = 'accepted'
+          * payload = verbose message by the wps [or None].
+        - ProcessStarted:
+          * Process has been accepted by the server and processing has begun.
+          * status = 'started'
+          * payload = verbose message and possibly a percentCompleted value [or None].
+        - ProcessPaused:
+          * The server has paused the process.
+          * status = 'paused'
+          * payload = verbose message and possibly a percentCompleted value [or None].
+        - ProcessSucceeded:
+          * The process has successfully completed its execution.
+          * status = 'succeeded'
+          * payload = verbose message and outputs of the project
+        - ProcessFailed: execution of the process has failed.
+          * Execution of the process has failed.
+          * status = 'failed'
+          * payload = TODO: to be defined 
+        Most of this is not yet implemented.
+        """
         document = self.do_request()
-        return document
+        status_tag = document.find("Status")
+        status = status_tag[0].tag
 
+        retval = None
 
+        if status == "ProcessAccepted":
+            retval = ('accepted', None)
+        elif status == "ProcessStarted":
+            retval = ('started', None)
+        elif status == "ProcessPaused":
+            retval = ('paused', None)
+        elif status == "ProcessSucceeded":
+            outputs = self._parse_outputs(
+                    document.find("ProcessOutputs"))
+            retval = ('succeeded', outputs)
+        elif status == "ProcessFailed":
+            retval = ('failed', None)
+        
+        assert retval is not None
 
-
+        return retval

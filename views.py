@@ -1,8 +1,12 @@
-from django.http import HttpResponseBadRequest
+import datetime
+
+from django.http import HttpResponseBadRequest, HttpResponseForbidden
+from django.db import transaction
 
 from tojson import render_to_json
-from .models import WpsServer
-from .wps import WpsError
+
+from .models import WpsServer, Process
+from .wps import WpsError, WpsResultConnection
 
 class DispatchError(RuntimeError):
     def __init__(self, payload):
@@ -59,12 +63,30 @@ def get_process_details(request, server_name, process_name):
 
 @render_to_json()
 @dispatch_errors
+@transaction.commit_on_success
 def run_process(request, server_name, process_name):
-    from .wps import WpsResultConnection
-    from lxml import etree
+    if not request.user.is_authenticated():
+        return {'error':'you need to be authenticated in order to run a process'}, {'cls':HttpResponseForbidden}
     server = get_wps_server_or_error(server_name)
     data_inputs = request.GET 
+    now = datetime.datetime.now()
     process_poll_url = run_process_or_error(server, process_name, data_inputs)
-    c = WpsResultConnection(process_poll_url)
+    
+    process = Process(user=request.user, 
+                      server=server, 
+                      name=process_name,
+                      started_at=now,
+                      polling_url=process_poll_url,
+                      inputs=data_inputs)
 
-    return etree.tostring(c.get_polling_status(), pretty_print=True), {'jsonify':False}
+    process.poll_and_update() 
+
+    return {'success':'process succesfully submitted to the wps server'}
+
+@render_to_json()
+@dispatch_errors
+def my_process_list(request):
+    if not request.user.is_authenticated():
+        return {'error':'you need to be authenticated in order to have processes'}, {'cls':HttpRequestForbidden}
+
+    return [process.to_dict() for process in Process.objects.by_user(request.user)]

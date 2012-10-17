@@ -6,7 +6,7 @@ import contextlib
 
 from lxml import etree
 
-from utils import clear_xml_namespaces
+from .utils import clear_xml_namespaces
 
 class WpsError(RuntimeError):
     def __init__(self, code, text):

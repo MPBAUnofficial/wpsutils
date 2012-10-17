@@ -1,5 +1,5 @@
 from django.contrib import admin
-from models import WpsServer, Process
+from .models import WpsServer, Process
 
 class WpsServerAdmin(admin.ModelAdmin):
     prepopulated_fields = {"identifier":("display_name",)}

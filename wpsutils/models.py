@@ -7,7 +7,7 @@ from django.utils.translation import ugettext as _
 
 import jsonfield
 
-from wps import WpsConnection, WpsResultConnection
+from .wps import WpsConnection, WpsResultConnection
 
 class WpsServerManager(models.Manager):
     def dict_objects(self): return [wps.to_dict() for wps in super(WpsServerManager, self).get_query_set().all()] 

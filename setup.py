@@ -18,7 +18,7 @@ setup(
         'Framework :: Django',
     ],
     requires = [
-        'django-jsonfield',
+        'jsonfield',
         'pytz'
     ],
     dependency_links = [

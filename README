@@ -1,0 +1,2 @@
+Wpsutils is a django package providing a nice json api to one or more
+WPS (Web Processing Service) servers.

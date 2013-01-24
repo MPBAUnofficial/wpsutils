@@ -1,6 +1,6 @@
 from django.conf.urls import patterns, url
 
-urlpatterns = patterns('wps.views',
+urlpatterns = patterns('wpsutils.views',
     url(r'server/list/$',
         'get_wps_server_list', name='wps-server-list'),
     url(r'process/list/(?P<server_name>[-\w]+)/$', 

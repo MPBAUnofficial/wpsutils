@@ -19,7 +19,7 @@ setup(
     ],
     requires = [
         'jsonfield',
-        'pytz'
+        'pytz',
     ],
     dependency_links = [
         'https://github.com/davidek/django-tojson.git#egg=tojson',

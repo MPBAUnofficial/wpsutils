@@ -6,7 +6,7 @@ from django.db import transaction
 from tojson import render_to_json
 
 from .models import WpsServer, Process
-from .wps import WpsError, WpsResultConnection
+from .wps import WpsError
 
 class DispatchError(RuntimeError):
     def __init__(self, payload):
@@ -87,6 +87,6 @@ def run_process(request, server_name, process_name):
 @dispatch_errors
 def my_process_list(request):
     if not request.user.is_authenticated():
-        return {'error':'you need to be authenticated in order to have processes'}, {'cls':HttpRequestForbidden}
+        return {'error':'you need to be authenticated in order to have processes'}, {'cls':HttpResponseForbidden}
 
     return [process.to_dict() for process in Process.objects.by_user(request.user)]

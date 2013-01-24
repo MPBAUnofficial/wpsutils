@@ -174,7 +174,10 @@ class WpsResultConnection(WpsAbstractConnection):
         elif status == "ProcessSucceeded":
             outputs = self._parse_outputs(
                     document.find("ProcessOutputs"))
-            retval = ('succeeded', outputs)
+            if outputs['EXCEPTION'] != "":
+                retval = ('failed', outputs['EXCEPTION'])
+            else:
+                retval = ('succeeded', outputs)
         elif status == "ProcessFailed":
             retval = ('failed', None)
         

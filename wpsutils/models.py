@@ -9,7 +9,7 @@ import jsonfield
 
 from .wps import WpsConnection, WpsResultConnection
 from .threads import RefreshProcess
-from .wpsutils_settings import THREAD_STARTED
+from . import wpsutils_settings as sett
 
 
 
@@ -128,7 +128,8 @@ class Process(models.Model):
         verbose_name_plural = _("processes")
 
 
-if not THREAD_STARTED:
-    if THREAD_STARTED is not None:
+if not sett.THREAD_STARTED:
+    if sett.THREAD_STARTED is not None:
         thread = RefreshProcess(Process)
         thread.start()
+        setattr(sett, 'THREAD_STARTED', True)

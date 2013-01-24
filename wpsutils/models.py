@@ -8,6 +8,10 @@ from django.utils.translation import ugettext as _
 import jsonfield
 
 from .wps import WpsConnection, WpsResultConnection
+from .threads import RefreshProcess
+from .wpsutils_settings import THREAD_STARTED
+
+
 
 class WpsServerManager(models.Manager):
     def dict_objects(self): return [wps.to_dict() for wps in super(WpsServerManager, self).get_query_set().all()] 
@@ -96,9 +100,7 @@ class Process(models.Model):
 
         try:
             status, payload = self.connection.get_polling_status()
-        except IOError: 
-            status='noup'
-        except urllib2.URLError:
+        except (IOError, urllib2.URLError):
             status='noup'
         
         self.status = status
@@ -113,7 +115,7 @@ class Process(models.Model):
                 'stopped_at':stopped_at,
                 'status':self.status,
                 'inputs':self.inputs,
-                'outputs':self.outputs,} 
+                'outputs':self.outputs,}
 
     objects = ProcessManager()
 
@@ -124,3 +126,9 @@ class Process(models.Model):
     class Meta:
         verbose_name = _("process")
         verbose_name_plural = _("processes")
+
+
+if not THREAD_STARTED:
+    if THREAD_STARTED is not None:
+        thread = RefreshProcess(Process)
+        thread.start()

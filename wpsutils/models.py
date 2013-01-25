@@ -1,4 +1,5 @@
 import urllib2
+import logging
 
 from django.db import models
 from django.db.models import Q
@@ -12,6 +13,7 @@ from .threads import RefreshProcess
 from . import wpsutils_settings as sett
 
 
+logger = logging.getLogger('wpsutils.models')
 
 class WpsServerManager(models.Manager):
     def dict_objects(self): return [wps.to_dict() for wps in super(WpsServerManager, self).get_query_set().all()] 
@@ -94,15 +96,15 @@ class Process(models.Model):
         return self._connection
 
     def poll_and_update(self):
-        # If the process has succeeded or failed do not poll. 
+        # If the process has succeeded or failed do not poll.
         if self.status in ('succeeded', 'failed'):
             return
 
         try:
             status, payload = self.connection.get_polling_status()
-        except (IOError, urllib2.URLError):
+        except (IOError, urllib2.URLError) as err:
+            logger.debug('%s, %s' % (type(err), str(err)))
             status, payload = ('noup', None)
-            
         
         self.status = status
         self.outputs = payload
@@ -129,8 +131,8 @@ class Process(models.Model):
         verbose_name_plural = _("processes")
 
 
-if not sett.THREAD_STARTED:
-    if sett.THREAD_STARTED is not None:
-        thread = RefreshProcess(Process)
-        thread.start()
-        setattr(sett, 'THREAD_STARTED', True)
+if sett.START_PROCESS:
+    thread = RefreshProcess(Process)
+    thread.start()
+    setattr(sett, 'START_PROCESS', False)
+    setattr(sett, 'PROCESS_REF', thread)

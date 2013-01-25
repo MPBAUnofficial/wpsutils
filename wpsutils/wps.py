@@ -1,5 +1,6 @@
 import re
 import urllib
+import logging
 import urllib2
 import urlparse
 import contextlib
@@ -7,6 +8,8 @@ import contextlib
 from lxml import etree
 
 from .utils import clear_xml_namespaces
+
+logger = logging.getLogger('wpsutils.wps')
 
 class WpsError(RuntimeError):
     def __init__(self, code, text):
@@ -127,8 +130,14 @@ class WpsResultConnection(WpsAbstractConnection):
                     'title':output.find("Title").text,
                     transform(output.find("Data")[0].tag):output.find("Data")[0].text
                     } for output in output_tag]
-
         return outputs
+
+    def _has_exception(self, output_list):
+        for out in output_list:
+            if out['identifier'] == 'EXCEPTION' and out['literal_data'] != "":
+                return out
+        return False
+
 
     def get_polling_status(self):
         """
@@ -159,6 +168,10 @@ class WpsResultConnection(WpsAbstractConnection):
           * payload = TODO: to be defined 
         Most of this is not yet implemented.
         """
+
+        logger.debug( 'polling at url: %s' %  self.url )
+        logger.debug( 'inputs are: %s' % self.inputs )
+
         document = self.do_request()
         status_tag = document.find("Status")
         status = status_tag[0].tag
@@ -174,10 +187,13 @@ class WpsResultConnection(WpsAbstractConnection):
         elif status == "ProcessSucceeded":
             outputs = self._parse_outputs(
                     document.find("ProcessOutputs"))
-            if outputs['EXCEPTION'] != "":
-                retval = ('failed', outputs['EXCEPTION'])
+            exception = self._has_exception(outputs)
+
+            if exception:
+                retval = ('failed', exception)
             else:
                 retval = ('succeeded', outputs)
+
         elif status == "ProcessFailed":
             retval = ('failed', None)
         

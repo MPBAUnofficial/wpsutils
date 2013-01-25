@@ -101,7 +101,8 @@ class Process(models.Model):
         try:
             status, payload = self.connection.get_polling_status()
         except (IOError, urllib2.URLError):
-            status='noup'
+            status, payload = ('noup', None)
+            
         
         self.status = status
         self.outputs = payload

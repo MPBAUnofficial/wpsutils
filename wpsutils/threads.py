@@ -8,6 +8,7 @@ except ImportError:
 
 class RefreshProcess(Process):
     def __init__(self, refresh_model):
+        super(RefreshProcess,self).__init__()
         self._refresh_model = refresh_model
 
     def run(self):

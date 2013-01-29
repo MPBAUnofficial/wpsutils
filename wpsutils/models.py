@@ -9,9 +9,6 @@ from django.utils.translation import ugettext as _
 import jsonfield
 
 from .wps import WpsConnection, WpsResultConnection
-from .threads import RefreshProcess
-from . import wpsutils_settings as sett
-
 
 logger = logging.getLogger('wpsutils.models')
 
@@ -103,7 +100,7 @@ class Process(models.Model):
         try:
             status, payload = self.connection.get_polling_status()
         except (IOError, urllib2.URLError) as err:
-            logger.debug('%s, %s' % (type(err), str(err)))
+            logger.debug('Polling error: %s' % (err,))
             status, payload = ('noup', None)
         
         self.status = status
@@ -130,9 +127,3 @@ class Process(models.Model):
         verbose_name = _("process")
         verbose_name_plural = _("processes")
 
-
-if sett.START_PROCESS:
-    thread = RefreshProcess(Process)
-    thread.start()
-    setattr(sett, 'START_PROCESS', False)
-    setattr(sett, 'PROCESS_REF', thread)

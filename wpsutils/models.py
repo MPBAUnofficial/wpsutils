@@ -92,9 +92,9 @@ class Process(models.Model):
             self._connection = WpsResultConnection(self.polling_url)
         return self._connection
 
-    def poll_and_update(self):
+    def poll_and_update(self, force_poll=False):
         # If the process has succeeded or failed do not poll.
-        if self.status in ('succeeded', 'failed'):
+        if not force_poll and self.status in ('succeeded', 'failed'):
             return
 
         try:

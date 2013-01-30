@@ -7,7 +7,7 @@ import contextlib
 
 from lxml import etree
 
-from .utils import clear_xml_namespaces
+from .utils import clear_xml_namespaces, clear_xml_comments
 
 logger = logging.getLogger('wpsutils.wps')
 
@@ -44,7 +44,7 @@ class XMLConnection(object):
             data = response.read()
 
         parser = etree.XMLParser(remove_blank_text=True)
-        return clear_xml_namespaces(etree.XML(data, parser))
+        return clear_xml_comments(clear_xml_namespaces(etree.XML(data, parser)))
 
 class WpsAbstractConnection(XMLConnection):
     def __init__(self, url):
@@ -67,7 +67,7 @@ class WpsConnection(WpsAbstractConnection):
     def do_request(self, request, data=None):
         data = data if data is not None else {}
         data.update({'Service':'WPS', 'Request':request}) 
-        clean_document = self.process_wps_errors(self.do_xml_request('GET', data))
+        clean_document = self.process_wps_errors(self.do_xml_request('GET', data)) 
         return clean_document 
 
     def get_process_list(self):
@@ -134,7 +134,8 @@ class WpsResultConnection(WpsAbstractConnection):
 
     def _has_exception(self, output_list):
         for out in output_list:
-            if out['identifier'] == 'EXCEPTION' and out['literal_data'] != "":
+            if out['identifier'] == 'EXCEPTION' and \
+                (out['literal_data'] is not None and out['literal_data'] != ""):
                 return out
         return False
 
@@ -169,8 +170,8 @@ class WpsResultConnection(WpsAbstractConnection):
         Most of this is not yet implemented.
         """
 
-        logger.debug( 'polling at url: %s' %  self.url )
-        logger.debug( 'inputs are: %s' % self.inputs )
+        logger.debug( 'polling at url: %s, inputs are %s' % \
+                (self.url, self.inputs))
 
         document = self.do_request()
         status_tag = document.find("Status")

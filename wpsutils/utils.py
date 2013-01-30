@@ -27,6 +27,26 @@ XSLT_STRIP_NAMESPACES="""
 </xsl:stylesheet>
 """
 
+XSLT_STRIP_COMMENTS="""
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+    <xsl:output omit-xml-declaration="yes"/>
+    <xsl:strip-space elements="*" />
+    <xsl:template match="@*|node()" name="identity">
+        <xsl:copy>
+            <xsl:apply-templates select="@*|node()"/>
+        </xsl:copy>
+    </xsl:template>
+    <xsl:template match="comment()"/>
+        <xsl:template match="@choice">
+            <xsl:value-of select="concat(.,'&#x9;')"/>
+        </xsl:template>
+    <xsl:template match="question|answer">
+    <xsl:call-template name="identity"/>
+        <xsl:text>&#xA;</xsl:text>
+    </xsl:template>
+</xsl:stylesheet>
+"""
+
 def url_join(*args):
     """
     Join any arbitrary strings into a forward-slash delimited list.
@@ -53,19 +73,13 @@ def url_join(*args):
 
     return joined[:-1] if joined.endswith("/") else joined
 
-def clear_xml_namespaces(xml_tree):
-    xslt = etree.parse(io.BytesIO(XSLT_STRIP_NAMESPACES))
-    transform = etree.XSLT(xslt)
+def apply_xslt(xslt, xml_tree):
+    xslt_transform = etree.parse(io.ByteIO(xslt))
+    transform = etree.XSLT(xslt_transform)
     return transform(xml_tree)
 
-a = """
-def cache(func, time):
-    \"\"\"
-    Create a cached function wich keeps values
-    stored for a fixed amount of time.
-    \"\"\"
-    import os
-    cache = {}
-    def inner(**kwargs):
-        if kwargs in cache.keys():
-"""
+def clear_xml_namespaces(xml_tree):
+    return apply_xslt(XSLT_STRIP_NAMESPACES, xml_tree)
+
+def clear_xml_comments(xml_tree):
+    return apply_xslt(XSLT_STRIP_COMMENTS, xml_tree)

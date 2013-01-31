@@ -52,12 +52,17 @@ class WpsAbstractConnection(XMLConnection):
 
     def process_wps_errors(self, document):
         exception_root = document.getroot()
+        print etree.tostring(exception_root)
         try:
             code = exception_root.find("Exception").get("exceptionCode")
-            text = exception_root.find("Exception").find("ExceptionText").text
         except AttributeError:
             return document 
         else:
+            #TODO: find a better way to do this ...
+            try:
+                text = exception_root.find("Exception").find("ExceptionText").text
+            except AttributeError:
+                text = ""
             raise WpsError(code, text)
 
 class WpsConnection(WpsAbstractConnection):
@@ -66,33 +71,32 @@ class WpsConnection(WpsAbstractConnection):
 
     def do_request(self, request, data=None):
         data = data if data is not None else {}
-        data.update({'Service':'WPS', 'Request':request}) 
+        data.update({'Service':'WPS', 'Request':request, 'Version':'1.0.0'})
         clean_document = self.process_wps_errors(self.do_xml_request('GET', data)) 
         return clean_document 
 
     def get_process_list(self):
         document = self.do_request('GetCapabilities') 
-        return [{'identifier':process.find("Identifier").text,
+        return [{'identifier':process.find("Identifier").get('text', ""),
                  'version':process.get("processVersion"),
-                 'title':process.find("Title").text}
+                 'title':process.find("Title").get('text', "")}
                 for process in document.find("ProcessOfferings")] 
 
     def get_process_details(self, process_name):
         document = self.do_request('DescribeProcess', {'Identifier':process_name})
-
         root = document.find("ProcessDescription")
         inputs_tree = root.find("DataInputs")
         outputs_tree = root.find("ProcessOutputs")
 
-        inputs = [{'identifier':input.find("Identifier").text,
+        inputs = [{'identifier':input.find("Identifier").get('text', ""),
                    'type':input.find("LiteralData").find("DataType").get("reference"),
-                   'title':input.find("Title").text,
-                   'abstract':input.find("Abstract").text,}
+                   'title':input.find("Title").get('text', ""),
+                   'abstract':input.find("Abstract").get('text', ""),}
                   for input in inputs_tree.findall("Input")]
 
-        outputs = [{'identifier': output.find("Identifier").text, 
-                    'title': output.find("Title").text,
-                    'abstract': output.find("Abstract").text,}
+        outputs = [{'identifier': output.find("Identifier").get('text', ""),
+                    'title': output.find("Title").get('text', ""),
+                    'abstract': output.find("Abstract").get('text', ""),}
                    for output in outputs_tree.findall("Output")]
 
         return {'inputs':inputs, 'outputs':outputs} 

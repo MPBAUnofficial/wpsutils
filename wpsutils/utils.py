@@ -74,7 +74,7 @@ def url_join(*args):
     return joined[:-1] if joined.endswith("/") else joined
 
 def apply_xslt(xslt, xml_tree):
-    xslt_transform = etree.parse(io.ByteIO(xslt))
+    xslt_transform = etree.parse(io.BytesIO(xslt))
     transform = etree.XSLT(xslt_transform)
     return transform(xml_tree)
 

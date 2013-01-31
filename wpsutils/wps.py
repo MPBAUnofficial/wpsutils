@@ -11,6 +11,9 @@ from .utils import clear_xml_namespaces, clear_xml_comments
 
 logger = logging.getLogger('wpsutils.wps')
 
+def safe_get(element, attr):
+    return getattr(element, attr, "")
+
 class WpsError(RuntimeError):
     def __init__(self, code, text):
         RuntimeError.__init__(self, text)
@@ -58,7 +61,6 @@ class WpsAbstractConnection(XMLConnection):
         except AttributeError:
             return document 
         else:
-            #TODO: find a better way to do this ...
             try:
                 text = exception_root.find("Exception").find("ExceptionText").text
             except AttributeError:
@@ -77,9 +79,9 @@ class WpsConnection(WpsAbstractConnection):
 
     def get_process_list(self):
         document = self.do_request('GetCapabilities') 
-        return [{'identifier':process.find("Identifier").get('text', ""),
+        return [{'identifier':safe_get(process.find("Identifier"),'text'),
                  'version':process.get("processVersion"),
-                 'title':process.find("Title").get('text', "")}
+                 'title':safe_get(process.find("Title"),'text')}
                 for process in document.find("ProcessOfferings")] 
 
     def get_process_details(self, process_name):
@@ -88,15 +90,15 @@ class WpsConnection(WpsAbstractConnection):
         inputs_tree = root.find("DataInputs")
         outputs_tree = root.find("ProcessOutputs")
 
-        inputs = [{'identifier':input.find("Identifier").get('text', ""),
-                   'type':input.find("LiteralData").find("DataType").get("reference"),
-                   'title':input.find("Title").get('text', ""),
-                   'abstract':input.find("Abstract").get('text', ""),}
+        inputs = [{'identifier':safe_get(input.find("Identifier"), 'text'),
+                   'type':safe_get(input.find("LiteralData").find("DataType"), 'reference'),
+                   'title':safe_get(input.find("Title"),'text'),
+                   'abstract':safe_get(input.find("Abstract"),'text'),}
                   for input in inputs_tree.findall("Input")]
 
-        outputs = [{'identifier': output.find("Identifier").get('text', ""),
-                    'title': output.find("Title").get('text', ""),
-                    'abstract': output.find("Abstract").get('text', ""),}
+        outputs = [{'identifier': safe_get(output.find("Identifier"),'text'),
+                    'title': safe_get(output.find("Title"), 'text'),
+                    'abstract': safe_get(output.find("Abstract"),'text'),}
                    for output in outputs_tree.findall("Output")]
 
         return {'inputs':inputs, 'outputs':outputs} 
@@ -130,8 +132,8 @@ class WpsResultConnection(WpsAbstractConnection):
     def _parse_outputs(self, output_tag):
         transform = lambda s: '_'.join([w.lower() for w in re.findall("[A-Z][a-z]+", s)])
 
-        outputs = [{'identifier':output.find("Identifier").text,
-                    'title':output.find("Title").text,
+        outputs = [{'identifier':safe_get(output.find("Identifier"),'text'),
+                    'title':safe_get(output.find("Title"),'text'),
                     transform(output.find("Data")[0].tag):output.find("Data")[0].text
                     } for output in output_tag]
         return outputs
